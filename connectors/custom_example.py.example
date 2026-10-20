@@ -1,0 +1,11 @@
+"""Copy to custom_<name>.py, implement fetch, then register its kind in app.py.
+
+from .base import BaseConnector
+
+class Connector(BaseConnector):
+    def fetch(self, config: dict, seen_item_keys: set[str]) -> list[dict]:
+        # Fetch from your historian, MES, utility portal, or internal service.
+        # Return records with site_id, reading_date, energy_kwh, and optionally
+        # production_units. Add a stable _item_key to prevent reprocessing.
+        return []
+"""

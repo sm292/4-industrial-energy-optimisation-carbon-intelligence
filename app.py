@@ -6,14 +6,24 @@ All demonstration readings are synthetic and are labeled in the UI.
 from __future__ import annotations
 
 import csv
+import hashlib
+import importlib
 import json
 import math
 import os
 import sqlite3
+import threading
+import time
+from datetime import datetime, timezone
 from datetime import date, timedelta
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse as parse_url
+
+from connectors.base import BaseConnector
+from connectors.csv_folder import CsvFolderConnector
+from connectors.http_json import HttpJsonConnector
 
 ROOT = Path(__file__).resolve().parent
 OUTPUTS = ROOT / "outputs"
@@ -23,6 +33,11 @@ ELECTRICITY_RATE = 7.35  # INR/kWh, illustrative blended tariff
 GAS_RATE = 2.85          # INR/kWh, illustrative equivalent tariff
 GRID_FACTOR = 0.708      # kg CO2e/kWh, illustrative factor
 GAS_FACTOR = 0.202       # kg CO2e/kWh, illustrative factor
+SOURCE_LOCK = threading.Lock()
+
+
+def utc_now():
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
 def connect():
@@ -53,6 +68,22 @@ def initialize():
           idle_reduction_pct REAL NOT NULL, flexible_shift_pct REAL NOT NULL,
           annual_savings_inr REAL NOT NULL, avoided_tco2e REAL NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS data_sources (
+          id INTEGER PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL,
+          config_json TEXT NOT NULL, poll_interval_seconds INTEGER NOT NULL DEFAULT 60,
+          enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL,
+          last_checked TEXT, last_success TEXT, last_error TEXT
+        );
+        CREATE TABLE IF NOT EXISTS ingestion_runs (
+          id INTEGER PRIMARY KEY, source_id INTEGER NOT NULL REFERENCES data_sources(id),
+          started_at TEXT NOT NULL, completed_at TEXT, status TEXT NOT NULL,
+          records_received INTEGER NOT NULL DEFAULT 0, records_written INTEGER NOT NULL DEFAULT 0,
+          message TEXT
+        );
+        CREATE TABLE IF NOT EXISTS source_items (
+          source_id INTEGER NOT NULL REFERENCES data_sources(id), item_key TEXT NOT NULL,
+          processed_at TEXT NOT NULL, PRIMARY KEY(source_id,item_key)
+        );
         """)
         if db.execute("SELECT COUNT(*) FROM sites").fetchone()[0] == 0:
             sites = [("Pune", "Assembly", .80, .20, 14500),
@@ -70,6 +101,9 @@ def initialize():
                     energy = round(base * (1 + weekly) * season * spike)
                     units = round((9800 + site_id * 580) * (0 if day.weekday() == 6 else 1) * (1 + .025 * math.sin(offset * .31)))
                     db.execute("INSERT INTO readings(site_id,reading_date,energy_kwh,production_units) VALUES(?,?,?,?)", (site_id, day.isoformat(), energy, units))
+        db.execute("""INSERT INTO data_sources(name,kind,config_json,poll_interval_seconds,enabled,created_at)
+          SELECT 'Incoming CSV folder','csv_folder',?,15,1,? WHERE NOT EXISTS (SELECT 1 FROM data_sources)""",
+          (json.dumps({'folder':'work/inbox','min_file_age_seconds':3}),utc_now()))
 
 
 def dashboard(days=30):
@@ -138,6 +172,99 @@ def dashboard(days=30):
       'assumptions':{'electricity_rate_inr_kwh':ELECTRICITY_RATE,'gas_rate_inr_kwh':GAS_RATE,'grid_factor_kg_co2e_kwh':GRID_FACTOR,'synthetic_data':True}}
 
 
+def connector_class(kind):
+    builtins = {'csv_folder': CsvFolderConnector, 'http_json': HttpJsonConnector}
+    if kind in builtins:
+        return builtins[kind]
+    if not kind.startswith('custom_') or not kind.replace('_', '').isalnum():
+        raise ValueError('Unknown connector kind. Use csv_folder, http_json, or custom_<name>.')
+    module = importlib.import_module(f'connectors.{kind}')
+    cls = getattr(module, 'Connector', None)
+    if cls is None or not issubclass(cls, BaseConnector):
+        raise ValueError(f'{kind} must define Connector as a subclass of BaseConnector')
+    return cls
+
+
+def source_view(row):
+    return {'id':row['id'],'name':row['name'],'kind':row['kind'],
+      'config':json.loads(row['config_json']),'poll_interval_seconds':row['poll_interval_seconds'],
+      'enabled':bool(row['enabled']),'created_at':row['created_at'],'last_checked':row['last_checked'],
+      'last_success':row['last_success'],'last_error':row['last_error'],
+      'status':'error' if row['last_error'] else 'connected' if row['last_success'] else 'waiting'}
+
+
+def sync_source(source_id):
+    # One source sync at a time; protects scheduler and manual refresh from duplicate work.
+    if not SOURCE_LOCK.acquire(blocking=False):
+        return {'status':'busy','message':'Another source sync is already running.'}
+    started=utc_now()
+    try:
+        with connect() as db:
+            source=db.execute('SELECT * FROM data_sources WHERE id=? AND enabled=1',(source_id,)).fetchone()
+            if not source: return {'status':'error','message':'Source not found or disabled.'}
+            config=json.loads(source['config_json'])
+            run_id=db.execute("INSERT INTO ingestion_runs(source_id,started_at,status) VALUES(?,?,'running')",(source_id,started)).lastrowid
+            seen={r['item_key'] for r in db.execute('SELECT item_key FROM source_items WHERE source_id=?',(source_id,))}
+        connector=connector_class(source['kind'])()
+        incoming=connector.fetch(config,seen)
+        normalized=[]
+        with connect() as db:
+            valid_sites={r['id'] for r in db.execute('SELECT id FROM sites')}
+        for row in incoming:
+            site_id=int(row['site_id']); reading_date=date.fromisoformat(str(row['reading_date'])[:10]).isoformat()
+            energy=float(row['energy_kwh']); units=float(row.get('production_units') or 0)
+            if site_id not in valid_sites or energy<0 or units<0 or not math.isfinite(energy+units):
+                raise ValueError(f'Invalid reading for site_id={site_id}, date={reading_date}')
+            raw_key=row.get('_item_key')
+            if raw_key is None:
+                stable=json.dumps({'site_id':site_id,'reading_date':reading_date,'energy_kwh':energy,'production_units':units},sort_keys=True)
+                raw_key=hashlib.sha256(stable.encode()).hexdigest()
+            normalized.append((site_id,reading_date,energy,units,str(raw_key)))
+        written=0
+        with connect() as db:
+            prior={r['item_key'] for r in db.execute('SELECT item_key FROM source_items WHERE source_id=?',(source_id,))}
+            for site_id,reading_date,energy,units,item_key in normalized:
+                if item_key in prior: continue
+                db.execute('''INSERT INTO readings(site_id,reading_date,energy_kwh,production_units) VALUES(?,?,?,?)
+                  ON CONFLICT(site_id,reading_date) DO UPDATE SET energy_kwh=excluded.energy_kwh,production_units=excluded.production_units''',
+                  (site_id,reading_date,energy,units))
+                db.execute('INSERT OR IGNORE INTO source_items(source_id,item_key,processed_at) VALUES(?,?,?)',(source_id,item_key,utc_now()))
+                prior.add(item_key); written+=1
+            completed=utc_now()
+            db.execute("UPDATE ingestion_runs SET completed_at=?,status='success',records_received=?,records_written=?,message=? WHERE id=?",
+              (completed,len(normalized),written,'No new readings' if written==0 else 'Readings upserted',run_id))
+            db.execute('UPDATE data_sources SET last_checked=?,last_success=?,last_error=NULL WHERE id=?',(completed,completed,source_id))
+        return {'status':'success','records_received':len(normalized),'records_written':written,'run_id':run_id}
+    except Exception as exc:
+        message=f'{type(exc).__name__}: {exc}'
+        with connect() as db:
+            if 'run_id' in locals():
+                db.execute("UPDATE ingestion_runs SET completed_at=?,status='error',message=? WHERE id=?",(utc_now(),message,run_id))
+            db.execute('UPDATE data_sources SET last_checked=?,last_error=? WHERE id=?',(utc_now(),message,source_id))
+        return {'status':'error','message':message}
+    finally:
+        SOURCE_LOCK.release()
+
+
+def source_scheduler():
+    while True:
+        try:
+            now=datetime.now(timezone.utc)
+            with connect() as db:
+                sources=db.execute('SELECT id,last_checked,poll_interval_seconds FROM data_sources WHERE enabled=1').fetchall()
+            for src in sources:
+                due=True
+                if src['last_checked']:
+                    try:
+                        last=datetime.fromisoformat(src['last_checked'])
+                        due=(now-last).total_seconds() >= src['poll_interval_seconds']
+                    except ValueError: pass
+                if due: sync_source(src['id'])
+        except Exception as exc:
+            print(f'Ingestion scheduler warning: {exc}')
+        time.sleep(5)
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(OUTPUTS), **kwargs)
@@ -156,13 +283,22 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed=urlparse(self.path)
-        if parsed.path == '/api/health': return self.send_json({'status':'ok','database':str(DB_PATH),'data':'synthetic demo; CSV import supported'})
+        if parsed.path == '/api/health': return self.send_json({'status':'ok','database':str(DB_PATH),'data':'SQL-backed dashboard with scheduled source connectors'})
         if parsed.path == '/api/dashboard':
             days=parse_qs(parsed.query).get('days',['30'])[0]
             try: return self.send_json(dashboard(days))
             except (ValueError, sqlite3.Error) as exc: return self.send_json({'error':str(exc)},400)
         if parsed.path == '/api/sites':
             with connect() as db: return self.send_json([dict(r) for r in db.execute('SELECT * FROM sites ORDER BY id')])
+        if parsed.path == '/api/sources':
+            with connect() as db: rows=db.execute('SELECT * FROM data_sources ORDER BY id').fetchall()
+            return self.send_json([source_view(r) for r in rows])
+        if parsed.path == '/api/ingestion/runs':
+            limit=max(1,min(100,int(parse_qs(parsed.query).get('limit',['20'])[0])))
+            with connect() as db:
+                rows=db.execute('''SELECT r.*,s.name AS source_name FROM ingestion_runs r
+                  JOIN data_sources s ON s.id=r.source_id ORDER BY r.id DESC LIMIT ?''',(limit,)).fetchall()
+            return self.send_json([dict(r) for r in rows])
         if parsed.path.startswith('/api/'): return self.send_json({'error':'Not found'},404)
         if parsed.path == '/': self.path='/index.html'
         return super().do_GET()
@@ -183,7 +319,29 @@ class Handler(SimpleHTTPRequestHandler):
                         if energy<0 or units<0 or not db.execute('SELECT 1 FROM sites WHERE id=?',(site_id,)).fetchone(): raise ValueError('Invalid site or negative reading value.')
                         db.execute('INSERT INTO readings(site_id,reading_date,energy_kwh,production_units) VALUES(?,?,?,?) ON CONFLICT(site_id,reading_date) DO UPDATE SET energy_kwh=excluded.energy_kwh,production_units=excluded.production_units',(site_id,rd,energy,units)); inserted+=1
                 return self.send_json({'upserted':inserted},201)
+            if parsed.path.startswith('/api/sources/') and parsed.path.endswith('/sync'):
+                try: source_id=int(parsed.path.split('/')[-2])
+                except ValueError: return self.send_json({'error':'Invalid source id'},400)
+                result=sync_source(source_id)
+                return self.send_json(result,200 if result['status'] in ('success','busy') else 400)
             payload=self.read_json()
+            if parsed.path == '/api/sources':
+                name=str(payload.get('name','')).strip(); kind=str(payload.get('kind','')).strip()
+                config=payload.get('config',{})
+                interval=int(payload.get('poll_interval_seconds',60))
+                if not name or not isinstance(config,dict): return self.send_json({'error':'Source name and configuration are required.'},400)
+                if not 15<=interval<=86400: return self.send_json({'error':'Poll interval must be between 15 seconds and 24 hours.'},400)
+                connector_class(kind)
+                if kind=='csv_folder' and not config.get('folder'): config['folder']='work/inbox'
+                if kind=='http_json':
+                    url=config.get('url',''); parsed_url=parse_url(url)
+                    if parsed_url.scheme not in ('http','https') or not parsed_url.netloc:
+                        return self.send_json({'error':'HTTP JSON sources need a valid http:// or https:// URL.'},400)
+                with connect() as db:
+                    cur=db.execute('INSERT INTO data_sources(name,kind,config_json,poll_interval_seconds,enabled,created_at) VALUES(?,?,?,?,1,?)',
+                      (name,kind,json.dumps(config),interval,utc_now()))
+                    row=db.execute('SELECT * FROM data_sources WHERE id=?',(cur.lastrowid,)).fetchone()
+                return self.send_json(source_view(row),201)
             if parsed.path == '/api/scenarios':
                 idle=float(payload['idle_reduction_pct']); shift=float(payload['flexible_shift_pct'])
                 if not 0<=idle<=30 or not 0<=shift<=40: return self.send_json({'error':'Idle reduction must be 0–30%; load shift must be 0–40%.'},400)
@@ -212,6 +370,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 if __name__ == '__main__':
     initialize()
+    threading.Thread(target=source_scheduler,name='flux-source-scheduler',daemon=True).start()
     server=ThreadingHTTPServer(('127.0.0.1',8000),Handler)
     print(f'Flux is running at http://127.0.0.1:8000  (SQLite: {DB_PATH})')
     try: server.serve_forever()

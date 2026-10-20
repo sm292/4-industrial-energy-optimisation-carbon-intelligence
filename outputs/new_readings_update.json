@@ -1,0 +1,172 @@
+{
+  "readings": [
+    {
+      "site_id": 1,
+      "reading_date": "2026-10-14",
+      "energy_kwh": 70364,
+      "production_units": 10620
+    },
+    {
+      "site_id": 2,
+      "reading_date": "2026-10-14",
+      "energy_kwh": 68074,
+      "production_units": 11140
+    },
+    {
+      "site_id": 3,
+      "reading_date": "2026-10-14",
+      "energy_kwh": 77044,
+      "production_units": 11660
+    },
+    {
+      "site_id": 4,
+      "reading_date": "2026-10-14",
+      "energy_kwh": 56928,
+      "production_units": 12180
+    },
+    {
+      "site_id": 1,
+      "reading_date": "2026-10-15",
+      "energy_kwh": 70575,
+      "production_units": 10641
+    },
+    {
+      "site_id": 2,
+      "reading_date": "2026-10-15",
+      "energy_kwh": 68278,
+      "production_units": 11162
+    },
+    {
+      "site_id": 3,
+      "reading_date": "2026-10-15",
+      "energy_kwh": 77275,
+      "production_units": 11683
+    },
+    {
+      "site_id": 4,
+      "reading_date": "2026-10-15",
+      "energy_kwh": 57099,
+      "production_units": 12204
+    },
+    {
+      "site_id": 1,
+      "reading_date": "2026-10-16",
+      "energy_kwh": 70786,
+      "production_units": 10662
+    },
+    {
+      "site_id": 2,
+      "reading_date": "2026-10-16",
+      "energy_kwh": 68482,
+      "production_units": 11185
+    },
+    {
+      "site_id": 3,
+      "reading_date": "2026-10-16",
+      "energy_kwh": 77506,
+      "production_units": 11707
+    },
+    {
+      "site_id": 4,
+      "reading_date": "2026-10-16",
+      "energy_kwh": 57270,
+      "production_units": 12229
+    },
+    {
+      "site_id": 1,
+      "reading_date": "2026-10-17",
+      "energy_kwh": 66027,
+      "production_units": 10684
+    },
+    {
+      "site_id": 2,
+      "reading_date": "2026-10-17",
+      "energy_kwh": 63879,
+      "production_units": 11207
+    },
+    {
+      "site_id": 3,
+      "reading_date": "2026-10-17",
+      "energy_kwh": 72296,
+      "production_units": 11730
+    },
+    {
+      "site_id": 4,
+      "reading_date": "2026-10-17",
+      "energy_kwh": 53420,
+      "production_units": 12253
+    },
+    {
+      "site_id": 1,
+      "reading_date": "2026-10-18",
+      "energy_kwh": 61239,
+      "production_units": 0
+    },
+    {
+      "site_id": 2,
+      "reading_date": "2026-10-18",
+      "energy_kwh": 59246,
+      "production_units": 0
+    },
+    {
+      "site_id": 3,
+      "reading_date": "2026-10-18",
+      "energy_kwh": 67053,
+      "production_units": 0
+    },
+    {
+      "site_id": 4,
+      "reading_date": "2026-10-18",
+      "energy_kwh": 49546,
+      "production_units": 0
+    },
+    {
+      "site_id": 1,
+      "reading_date": "2026-10-19",
+      "energy_kwh": 71419,
+      "production_units": 10726
+    },
+    {
+      "site_id": 2,
+      "reading_date": "2026-10-19",
+      "energy_kwh": 69095,
+      "production_units": 11251
+    },
+    {
+      "site_id": 3,
+      "reading_date": "2026-10-19",
+      "energy_kwh": 107916,
+      "production_units": 11777
+    },
+    {
+      "site_id": 4,
+      "reading_date": "2026-10-19",
+      "energy_kwh": 57782,
+      "production_units": 12302
+    },
+    {
+      "site_id": 1,
+      "reading_date": "2026-10-20",
+      "energy_kwh": 71631,
+      "production_units": 10747
+    },
+    {
+      "site_id": 2,
+      "reading_date": "2026-10-20",
+      "energy_kwh": 69299,
+      "production_units": 11274
+    },
+    {
+      "site_id": 3,
+      "reading_date": "2026-10-20",
+      "energy_kwh": 78431,
+      "production_units": 11800
+    },
+    {
+      "site_id": 4,
+      "reading_date": "2026-10-20",
+      "energy_kwh": 57953,
+      "production_units": 12326
+    }
+  ]
+}

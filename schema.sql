@@ -29,3 +29,34 @@ CREATE TABLE IF NOT EXISTS scenario_runs (
   annual_savings_inr REAL NOT NULL,
   avoided_tco2e REAL NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS data_sources (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  config_json TEXT NOT NULL,
+  poll_interval_seconds INTEGER NOT NULL DEFAULT 60,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  last_checked TEXT,
+  last_success TEXT,
+  last_error TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ingestion_runs (
+  id INTEGER PRIMARY KEY,
+  source_id INTEGER NOT NULL REFERENCES data_sources(id),
+  started_at TEXT NOT NULL,
+  completed_at TEXT,
+  status TEXT NOT NULL,
+  records_received INTEGER NOT NULL DEFAULT 0,
+  records_written INTEGER NOT NULL DEFAULT 0,
+  message TEXT
+);
+
+CREATE TABLE IF NOT EXISTS source_items (
+  source_id INTEGER NOT NULL REFERENCES data_sources(id),
+  item_key TEXT NOT NULL,
+  processed_at TEXT NOT NULL,
+  PRIMARY KEY (source_id, item_key)
+);
