@@ -1,3 +1,7 @@
+# Industrial Energy Optimisation & Carbon Intelligence
+
+Python | Industrial Analytics | Energy Efficiency | Carbon Accounting | Optimization
+
 # Flux · Industrial energy intelligence
 
 A local Python + SQLite application with a browser dashboard for factory energy use, demand forecasting, abnormal consumption, cost and emissions estimates, and savings scenarios. No third-party Python packages are required.
