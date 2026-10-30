@@ -1,31 +1,160 @@
+
 # Industrial Energy Optimisation & Carbon Intelligence
 
-Python | Industrial Analytics | Energy Efficiency | Carbon Accounting | Optimization
+<p align="center">
+  <strong>Flux – Industrial Energy Intelligence</strong><br>
+  An end-to-end industrial analytics application for energy monitoring,
+  demand forecasting, anomaly detection, carbon intelligence and
+  operational optimisation.
+</p>
 
-# Flux · Industrial energy intelligence
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10+-blue?logo=python" />
+  <img src="https://img.shields.io/badge/Database-SQLite-003B57?logo=sqlite" />
+  <img src="https://img.shields.io/badge/Analytics-Industrial%20AI-orange" />
+  <img src="https://img.shields.io/badge/Status-Active-success" />
+</p>
 
-A local Python + SQLite application with a browser dashboard for factory energy use, demand forecasting, abnormal consumption, cost and emissions estimates, and savings scenarios. No third-party Python packages are required.
+---
 
-## Run locally
+## 1. Project Overview
 
-1. Install Python 3.10 or later.
-2. Double-click `start.bat`, or run `python app.py` from this folder.
-3. Open [http://127.0.0.1:8000](http://127.0.0.1:8000).
+**Flux – Industrial Energy Intelligence** is a Python-based industrial analytics application designed to help manufacturing facilities monitor energy consumption, identify abnormal usage patterns, forecast energy demand and evaluate potential cost and carbon savings.
 
-On first start, the app creates `work/flux.db`, creates four example sites and 120 days of synthetic readings, registers a watcher for `work/inbox`, and starts the local web server. The source scheduler checks enabled sources on their configured intervals (minimum 15 seconds). The dashboard refreshes from SQL every 30 seconds. Stop the server with Ctrl+C in its console.
+The application combines a browser-based interactive dashboard, Python analytics, SQLite database management and automated data ingestion.
 
-## Data and database
+It simulates a multi-site industrial environment and provides a practical framework for understanding how data analytics can support energy efficiency and sustainable manufacturing.
 
-SQLite is the default SQL database. The schema is in `schema.sql`; `app.py` initializes it automatically. Set `FLUX_DB_PATH` to store the database elsewhere. Tables:
+### Key Objectives
 
-- `sites`: site, process, energy split, and active state.
-- `readings`: daily energy and production; one record per site and date.
-- `scenario_runs`: saved slider assumptions and resulting estimates.
-- `data_sources`: connector type, non-secret configuration, polling interval, and latest sync state.
-- `ingestion_runs`: one audit row per automatic or manual source check.
-- `source_items`: idempotency keys, so repeated polling does not create repeated imports.
+- Monitor industrial energy consumption across multiple facilities.
+- Analyse electricity and gas consumption patterns.
+- Forecast short-term energy demand.
+- Detect abnormal energy consumption.
+- Estimate operational energy costs.
+- Calculate Scope 2 carbon emissions.
+- Evaluate energy optimisation scenarios.
+- Automate data collection and database updates.
 
-The `/api/sites` endpoint lists site IDs and names. Upload a CSV to `POST /api/readings/import-csv` with columns `site_id,reading_date,energy_kwh,production_units` (date format `YYYY-MM-DD`; production is optional). Example:
+---
+
+## 2. Dashboard Preview
+
+### Flux – Industrial Energy Intelligence
+
+The project includes a locally hosted interactive dashboard that connects directly to the SQLite database.
+
+**Dashboard features:**
+
+| Module | Functionality |
+|---|---|
+| Energy Monitoring | Track energy consumption across industrial sites |
+| Energy Forecasting | Generate a seven-day energy demand outlook |
+| Anomaly Detection | Identify unusual energy consumption |
+| Cost Intelligence | Estimate electricity and gas expenditure |
+| Carbon Intelligence | Calculate estimated Scope 2 emissions |
+| Site Performance | Compare energy intensity across facilities |
+| Optimisation Scenarios | Simulate potential energy and cost savings |
+| Data Management | Upload readings and monitor automated sources |
+
+### Dashboard Screenshot
+
+![Flux Industrial Energy Intelligence Dashboard](outputs/dashboard.png)
+
+---
+
+## 3. Core Functionalities
+
+### 3.1 Industrial Energy Monitoring
+
+Monitor daily energy consumption across four demonstration facilities:
+
+- Pune – Assembly
+- Chennai – Components
+- Vadodara – Foundry
+- Nashik – Finishing
+
+Analyse:
+- Total energy consumption (kWh)
+- Electricity and gas consumption
+- Production output
+- Energy intensity
+- Site-level energy performance
+
+### 3.2 Energy Demand Forecasting
+
+The application generates a seven-day energy consumption forecast.
+
+The forecasting methodology incorporates:
+- Recent historical energy consumption.
+- Linear trend estimation.
+- Weekday-based consumption patterns.
+- Historical daily energy averages.
+
+This provides a short-term outlook to support operational planning.
+
+### 3.3 Energy Anomaly Detection
+
+Identify unusual energy consumption at individual industrial sites.
+
+The application compares daily readings against the preceding 14-day baseline.
+
+An observation is flagged when consumption exceeds the baseline by 2.2 standard deviations, subject to a minimum variation threshold.
+
+Alert classifications:
+- HIGH – Significant abnormal consumption.
+- WATCH – Potentially unusual energy usage.
+
+This helps identify possible inefficiencies and investigate unexpected energy demand.
+
+### 3.4 Energy Cost Intelligence
+
+Estimate industrial energy expenditure using configurable illustrative tariffs.
+
+| Energy Source | Illustrative Rate |
+|---|---:|
+| Electricity | ₹7.35/kWh |
+| Gas | ₹2.85/kWh |
+
+Calculate estimated operating expenditure and understand how changes in energy consumption affect costs.
+
+### 3.5 Carbon Emissions Intelligence
+
+Estimate Scope 2 emissions associated with electricity consumption.
+
+The application uses an illustrative grid emissions factor of 0.708 kg CO₂e/kWh.
+
+Gas emissions are also estimated separately using an illustrative factor of 0.202 kg CO₂e/kWh.
+
+These factors are demonstration assumptions, not verified location-specific reporting factors.
+
+### 3.6 Energy Optimisation Scenarios
+
+Evaluate potential savings through adjustable optimisation assumptions.
+
+The application allows users to simulate:
+
+- Idle energy reduction: 0–30%.
+- Flexible load shifting: 0–40%.
+
+Outputs include:
+- Estimated annual cost savings.
+- Estimated avoided emissions.
+- Saved optimisation scenarios.
+
+These are directional estimates rather than measured or guaranteed savings.
+
+---
+
+## 4. Automated Data Integration
+
+Flux supports multiple data ingestion methods.
+
+### CSV Upload
+
+Upload industrial meter readings through the dashboard.
+
+Expected columns:
 
 ```csv
 site_id,reading_date,energy_kwh,production_units
@@ -33,45 +162,233 @@ site_id,reading_date,energy_kwh,production_units
 2,2026-10-18,66100,11930
 ```
 
-CSV rows are inserted or updated by site and date. From PowerShell, for example:
+### JSON Integration
 
-```powershell
-Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/readings/import-csv -ContentType text/csv -InFile .\readings.csv
+Connect external HTTP JSON endpoints using the built-in connector.
+
+### Automated CSV Monitoring
+
+The application monitors the `work/inbox` directory for incoming CSV files.
+
+Features include:
+- Automatic file detection.
+- Scheduled source checks.
+- Duplicate ingestion prevention.
+- Database record updates.
+- Import history and error tracking.
+
+### Custom Connectors
+
+Additional connectors can be developed using the base connector interface.
+
+Potential integrations include:
+- Industrial IoT systems.
+- Manufacturing Execution Systems (MES).
+- Energy meters.
+- Industrial historians.
+- Utility data platforms.
+
+---
+
+## 5. Technology Stack
+
+| Category | Technologies |
+|---|---|
+| Programming | Python 3.10+ |
+| Database | SQLite |
+| Backend | Python HTTP Server |
+| Frontend | HTML, CSS, JavaScript |
+| Data Processing | Python standard library |
+| Data Integration | CSV, JSON, HTTP APIs |
+| Forecasting | Trend and weekday-based forecasting |
+| Anomaly Detection | Statistical threshold detection |
+| Version Control | Git and GitHub |
+
+**Note:** The current implementation does not require third-party Python packages.
+
+---
+
+## 6. Database Architecture
+
+The application uses SQLite for persistent data storage.
+
+### Database Tables
+
+| Table | Purpose |
+|---|---|
+| sites | Industrial facility information |
+| readings | Daily energy and production records |
+| scenario_runs | Saved optimisation scenarios |
+| data_sources | Connector configurations |
+| ingestion_runs | Data ingestion audit history |
+| source_items | Duplicate ingestion tracking |
+
+The database schema is maintained in `schema.sql` and is initialised automatically when the application starts.
+
+---
+
+## 7. Project Structure
+
+```text
+4-industrial-energy-optimisation-carbon-intelligence/
+│
+├── connectors/
+│   ├── base.py
+│   ├── csv_folder.py
+│   ├── http_json.py
+│   └── custom_example.py.example
+│
+├── outputs/
+│   ├── index.html
+│   ├── demo_readings.csv
+│   ├── demo_readings.json
+│   └── dashboard.png
+│
+├── work/
+│   └── flux.db
+│
+├── app.py
+├── schema.sql
+├── start.bat
+├── .gitignore
+└── README.md
 ```
 
-### Automatic sources
+*The database file is generated locally and may be excluded from Git tracking.*
 
-The **Data sources & automatic updates** section in the dashboard lets you register connectors and check their sync status. The default **Incoming CSV folder** watches `work/inbox`. Drop complete `.csv` files there using columns `site_id,reading_date,energy_kwh,production_units`; Flux waits until the file has stopped changing, imports it, records the run, and skips already processed rows on later checks. For files copied by another process, write as `.tmp` and rename to `.csv` only after the copy completes. Readings are upserted by `(site_id, reading_date)`, so a corrected file can update a prior daily value.
+---
 
-To try a direct portal upload, download [outputs/demo_readings.csv](outputs/demo_readings.csv), open the dashboard's **Data sources & automatic updates** section, choose the file under **Upload meter readings CSV**, then click **Upload readings to SQL**. The demo contains 120 rows covering 30 days across the four seeded sites, including deliberate spikes for the anomaly view. Re-uploading it is safe: matching site/date readings are updated in place.
+## 8. Installation and Execution
 
-The same readings are also available as [outputs/demo_readings.json](outputs/demo_readings.json). Choose it under **Upload meter readings JSON** to import through the JSON API.
+### Requirements
 
-The built-in `http_json` connector polls a GET endpoint that returns either an array of readings or an object with a `readings` array. Register it in the dashboard using configuration such as:
+- Python 3.10 or later.
+- Windows, macOS or Linux.
+- Modern web browser.
 
-```json
-{"url":"https://meter.example/api/readings","records_path":"readings","token_env":"METER_API_TOKEN","timeout_seconds":15}
+### Step 1: Clone Repository
+
+```bash
+git clone https://github.com/sm292/4-industrial-energy-optimisation-carbon-intelligence.git
+
+cd 4-industrial-energy-optimisation-carbon-intelligence
 ```
 
-Set the named token environment variable before starting Flux; the secret itself is not stored in SQLite. The API records must use `site_id`, `reading_date`, `energy_kwh`, and optionally `production_units`. If the provider's response uses different field names, add a small Python adapter to map it.
+### Step 2: Run the Application
 
-### Add a custom Python source
+**Windows:**
 
-Implement the connector contract in `connectors/custom_<name>.py`, using [connectors/custom_example.py.example](connectors/custom_example.py.example) as a starting point. Name the class `Connector`, subclass `BaseConnector`, and implement `fetch(config, seen_item_keys)` to return normalized readings. Give each record a stable `_item_key` when possible. Then add a source in the dashboard with kind `custom_<name>` and your adapter's JSON configuration. Restart Flux after adding a new adapter file. This lets you integrate a historian, MES, utility portal, database client, or vendor SDK without changing the dashboard or ingestion scheduler.
+```bash
+start.bat
+```
 
-## API
+Alternatively:
 
-- `GET /api/health` — service status and database path.
-- `GET /api/sites` — configured sites.
-- `GET /api/dashboard?days=30` — KPI totals, daily series, seven-day forecast, site intensity, and detected anomalies. `days` accepts 7–120.
-- `POST /api/scenarios` — JSON `{ "idle_reduction_pct": 12, "flexible_shift_pct": 20 }`; returns estimates and records the scenario.
-- `POST /api/readings/import` — JSON `{ "readings": [{"site_id":1,"reading_date":"2026-10-18","energy_kwh":70400,"production_units":15020}] }`.
-- `POST /api/readings/import-csv` — CSV file upload as shown above.
-- `GET /api/sources` — registered connectors and latest sync status.
-- `POST /api/sources` — register `{ "name":"Meter feed", "kind":"csv_folder", "config":{"folder":"work/inbox"}, "poll_interval_seconds":60 }`; `http_json` accepts a `url`, optional `records_path`, `token_env`, and `timeout_seconds`.
-- `POST /api/sources/{id}/sync` — run a source check immediately.
-- `GET /api/ingestion/runs?limit=20` — recent import history and counts.
+```bash
+python app.py
+```
 
-## Calculation notes
+### Step 3: Open Dashboard
 
-The seven-day outlook uses a linear trend on recent daily portfolio totals adjusted by weekday averages. Daily abnormal readings are flagged when they exceed the site's preceding 14-day mean by 2.2 standard deviations (with a small baseline floor). Cost and emissions use the illustrative electricity and gas rates and factors in `app.py`. Savings are directional scenario estimates, not verified savings. New imported data updates the dashboard automatically, but synthetic seed readings remain for dates and sites that have not been replaced. The service binds to localhost and is intended as a local demonstration, not an internet-facing deployment.
+Navigate to:
+
+```text
+http://127.0.0.1:8000
+```
+
+The application automatically initialises the SQLite database and generates demonstration readings on its first run.
+
+The dashboard refreshes its data periodically.
+
+---
+
+## 9. API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | /api/health | Application health status |
+| GET | /api/sites | List industrial facilities |
+| GET | /api/dashboard?days=30 | Dashboard analytics |
+| POST | /api/scenarios | Run optimisation scenario |
+| POST | /api/readings/import | Import JSON readings |
+| POST | /api/readings/import-csv | Import CSV readings |
+| GET | /api/sources | List data connectors |
+| POST | /api/sources | Register a data source |
+| POST | /api/sources/{id}/sync | Trigger source synchronisation |
+| GET | /api/ingestion/runs | View ingestion history |
+
+---
+
+## 10. Business Applications
+
+This project demonstrates how industrial data analytics can support:
+
+1. **Smart Manufacturing:** Monitor energy consumption across production facilities.
+2. **Predictive Energy Management:** Forecast upcoming energy requirements.
+3. **Operational Efficiency:** Identify abnormal energy usage and investigate inefficiencies.
+4. **Cost Optimisation:** Estimate potential reductions in energy expenditure.
+5. **Sustainable Manufacturing:** Evaluate carbon emissions and potential reduction opportunities.
+6. **Industrial Digitalisation:** Integrate different data sources into a centralised monitoring platform.
+
+---
+
+## 11. Future Enhancements
+
+Potential development opportunities include:
+
+- Machine learning-based energy demand forecasting.
+- Advanced anomaly detection using Isolation Forest and clustering.
+- Production-aware energy optimisation.
+- Real-time IoT sensor integration.
+- Renewable energy and solar generation analytics.
+- Power BI and Tableau integration.
+- Multi-factory benchmarking.
+- Cloud deployment and role-based access.
+- Predictive maintenance using energy consumption patterns.
+
+---
+
+## 12. Important Data Disclaimer
+
+This repository currently uses synthetic demonstration data generated by the application.
+
+Energy tariffs and emissions factors are illustrative assumptions. Forecasts, anomaly alerts, cost estimates and savings scenarios should be validated against actual industrial measurements before operational or sustainability reporting decisions.
+
+The application is intended as a local demonstration and is not configured as an internet-facing production service.
+
+---
+
+## 13. Skills Demonstrated
+
+- Python Programming
+- Industrial Data Analytics
+- SQL and Database Management
+- Energy Consumption Analysis
+- Time-Series Forecasting
+- Statistical Anomaly Detection
+- Carbon Emissions Estimation
+- Data Integration and Automation
+- API Development
+- Dashboard Development
+- Operational Cost Analysis
+- Sustainable Manufacturing Analytics
+
+---
+
+## 14. Author
+
+**Sumit Mondal**
+
+Data Analytics | Data Science | Machine Learning | Industrial AI
+
+GitHub: [@sm292](https://github.com/sm292)
+
+Project Repository:
+
+[Industrial Energy Optimisation & Carbon Intelligence](https://github.com/sm292/4-industrial-energy-optimisation-carbon-intelligence)
+
+---
+
+<p align="center">
+  <strong>Turning Industrial Data into Energy Intelligence.</strong>
+</p>
